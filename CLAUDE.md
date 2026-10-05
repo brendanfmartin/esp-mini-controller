@@ -3,8 +3,9 @@
 PlatformIO project: ESP32 (ESP32-D0WD-V3, 4MB flash, `esp32dev`) acting as a Bluetooth LE MIDI controller for GarageBand on iPhone. Two buttons send notes; an SSD1306 128x64 I2C OLED shows status.
 
 - Wiring lives in [docs/wiring.md](docs/wiring.md) (pinout diagram + connection table). It's the source of truth: whenever a pin assignment changes in code, update the diagram, the table, and the status column in the same change.
+- iPhone connection steps and troubleshooting: [docs/garageband.md](docs/garageband.md).
 - Board is on `/dev/cu.usbserial-0001` (CP2102). Full chip details in [docs/board.md](docs/board.md).
-- Envs in `platformio.ini`, selected by `build_src_filter`, one folder each under `src/`: `blink`, `button` (default), `midi`. Build one with `pio run -e <env>`.
+- Envs in `platformio.ini`, selected by `build_src_filter`, one folder each under `src/`: `blink`, `button`, `midi` (default). Build one with `pio run -e <env>`.
 
 ## Rules
 

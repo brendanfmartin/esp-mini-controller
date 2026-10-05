@@ -1,4 +1,6 @@
 // ESP Mini MIDI controller: two buttons -> BLE MIDI notes, status on an SSD1306 OLED.
+// The OLED is optional: without it, the onboard LED shows BLE status
+// (slow blink = waiting for a connection, solid = connected).
 //
 // Wiring
 //   OLED  GND -> GND, VCC -> 3V3, SDA -> GPIO21, SCL -> GPIO22
@@ -10,7 +12,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <BLEMIDI_Transport.h>
-#include <hardware/BLEMIDI_ESP32.h>
+#include <hardware/BLEMIDI_ESP32_NimBLE.h>  // NimBLE: about half the flash of the Bluedroid stack
 
 // ---- Config -----------------------------------------------------------------
 
@@ -18,6 +20,8 @@ static const char *DEVICE_NAME = "ESP Mini MIDI";
 static const uint8_t MIDI_CHANNEL = 1;
 static const uint8_t VELOCITY = 100;
 static const uint32_t DEBOUNCE_MS = 15;
+static const uint8_t LED_PIN = 2;  // blue onboard LED
+static const uint32_t ADVERTISING_BLINK_MS = 500;
 
 struct Button {
   uint8_t pin;
@@ -54,6 +58,11 @@ static bool hasLastNote = false;
 static void onConnected() {
   bleConnected = true;
   needsRedraw = true;
+
+  // BLE-MIDI enables bonding but never asks for it, so ask the phone to pair now.
+  for (uint16_t conn : NimBLEDevice::getServer()->getPeerDevices()) {
+    NimBLEDevice::startSecurity(conn);
+  }
 }
 
 static void onDisconnected() {
@@ -107,6 +116,23 @@ static void drawScreen() {
   display.display();
 }
 
+// How many centrals have enabled notifications on the MIDI characteristic.
+// Notes only reach the phone when this is > 0.
+static size_t midiSubscribers() {
+  NimBLEService *svc = NimBLEDevice::getServer()->getServiceByUUID(BLEMIDI_NAMESPACE::SERVICE_UUID);
+  if (!svc) return 0;
+  NimBLECharacteristic *chr = svc->getCharacteristic(BLEMIDI_NAMESPACE::CHARACTERISTIC_UUID);
+  return chr ? chr->getSubscribedCount() : 0;
+}
+
+static void updateStatusLed() {
+  if (bleConnected) {
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, (millis() / ADVERTISING_BLINK_MS) % 2 ? HIGH : LOW);
+  }
+}
+
 static void pollButtons() {
   const uint32_t now = millis();
   for (size_t i = 0; i < NUM_BUTTONS; i++) {
@@ -127,7 +153,8 @@ static void pollButtons() {
       MIDI.sendNoteOn(b.note, VELOCITY, MIDI_CHANNEL);
       lastNote = b.note;
       hasLastNote = true;
-      Serial.printf("Button %c down -> note on %s\n", 'A' + (int)i, noteName(b.note).c_str());
+      Serial.printf("Button %c down -> note on %s (subscribers: %u)\n", 'A' + (int)i,
+                    noteName(b.note).c_str(), (unsigned)midiSubscribers());
     } else {
       MIDI.sendNoteOff(b.note, 0, MIDI_CHANNEL);
       Serial.printf("Button %c up   -> note off\n", 'A' + (int)i);
@@ -146,8 +173,13 @@ void setup() {
     pinMode(buttons[i].pin, INPUT_PULLUP);
   }
 
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  // display.begin() doesn't check for an ACK, so probe the bus ourselves first
   Wire.begin(21, 22);
-  displayOk = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+  Wire.beginTransmission(OLED_ADDR);
+  displayOk = (Wire.endTransmission() == 0) && display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
   if (!displayOk) {
     Serial.println("SSD1306 not found (check wiring / try address 0x3D). Continuing without display.");
   }
@@ -155,6 +187,7 @@ void setup() {
   BLEMIDI.setHandleConnected(onConnected);
   BLEMIDI.setHandleDisconnected(onDisconnected);
   MIDI.begin(MIDI_CHANNEL_OMNI);
+  NimBLEDevice::setSecurityAuth(true, false, true);  // bond, no MITM (no screen/keypad), secure connections
 
   Serial.printf("Advertising as \"%s\"\n", DEVICE_NAME);
 }
@@ -162,6 +195,7 @@ void setup() {
 void loop() {
   MIDI.read();
   pollButtons();
+  updateStatusLed();
 
   static bool wasConnected = false;
   if (bleConnected != wasConnected) {
