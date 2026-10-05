@@ -1,4 +1,4 @@
-// ESP Mini MIDI controller: two buttons -> BLE MIDI notes, status on an SSD1306 OLED.
+// ESP Mini MIDI controller: two drum pads (kick, snare) -> BLE MIDI, status on an SSD1306 OLED.
 // The OLED is optional: without it, the onboard LED shows BLE status
 // (slow blink = waiting for a connection, solid = connected).
 //
@@ -24,16 +24,17 @@ static const uint8_t LED_PIN = 2;  // blue onboard LED
 static const uint32_t ADVERTISING_BLINK_MS = 500;
 
 struct Button {
+  const char *label;
   uint8_t pin;
-  uint8_t note;  // MIDI note number (60 = middle C)
+  uint8_t note;  // MIDI note number; drum kits use the General MIDI drum map
   bool pressed;
   bool lastReading;
   uint32_t lastChangeMs;
 };
 
 static Button buttons[] = {
-    {32, 60, false, HIGH, 0},  // A: C4
-    {33, 67, false, HIGH, 0},  // B: G4
+    {"Kick", 32, 36, false, HIGH, 0},   // A: GM 36 = bass drum
+    {"Snare", 33, 38, false, HIGH, 0},  // B: GM 38 = acoustic snare
 };
 static const size_t NUM_BUTTONS = sizeof(buttons) / sizeof(buttons[0]);
 
@@ -52,8 +53,7 @@ BLEMIDI_CREATE_INSTANCE(DEVICE_NAME, MIDI);
 
 static volatile bool bleConnected = false;
 static bool needsRedraw = true;
-static uint8_t lastNote = 0;
-static bool hasLastNote = false;
+static const char *lastLabel = nullptr;
 
 static void onConnected() {
   bleConnected = true;
@@ -72,11 +72,6 @@ static void onDisconnected() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-static String noteName(uint8_t note) {
-  static const char *names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-  return String(names[note % 12]) + String((int)note / 12 - 1);
-}
-
 static void drawScreen() {
   if (!displayOk) return;
 
@@ -92,7 +87,7 @@ static void drawScreen() {
   // Big last-played note in the middle
   display.setTextSize(3);
   display.setCursor(0, 18);
-  display.print(hasLastNote ? noteName(lastNote) : "--");
+  display.print(lastLabel ? lastLabel : "--");
 
   // Two pads along the bottom, filled while held
   const uint8_t padW = SCREEN_W / 2 - 2;
@@ -100,7 +95,7 @@ static void drawScreen() {
   const uint8_t padY = SCREEN_H - padH;
   for (size_t i = 0; i < NUM_BUTTONS; i++) {
     const uint8_t x = i * (SCREEN_W / 2) + 1;
-    const String label = String(char('A' + i)) + " " + noteName(buttons[i].note);
+    const String label = String(char('A' + i)) + " " + buttons[i].label;
     display.setTextSize(1);
     if (buttons[i].pressed) {
       display.fillRect(x, padY, padW, padH, SSD1306_WHITE);
@@ -151,10 +146,9 @@ static void pollButtons() {
     b.pressed = isDown;
     if (isDown) {
       MIDI.sendNoteOn(b.note, VELOCITY, MIDI_CHANNEL);
-      lastNote = b.note;
-      hasLastNote = true;
-      Serial.printf("Button %c down -> note on %s (subscribers: %u)\n", 'A' + (int)i,
-                    noteName(b.note).c_str(), (unsigned)midiSubscribers());
+      lastLabel = b.label;
+      Serial.printf("Button %c down -> %s (note %u, subscribers: %u)\n", 'A' + (int)i, b.label,
+                    b.note, (unsigned)midiSubscribers());
     } else {
       MIDI.sendNoteOff(b.note, 0, MIDI_CHANNEL);
       Serial.printf("Button %c up   -> note off\n", 'A' + (int)i);

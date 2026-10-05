@@ -81,10 +81,10 @@ There are **3 GND pins**, all connected to each other, so use whichever is close
 
 | Part | Part pin | Board label | Row / pin # | Status |
 |---|---|---|---|---|
-| Button A | leg 1 | P32 | 3V3 row, pin 7 | ✅ wired |
-| Button A | leg 2 | GND | 3V3 row, pin 14 | ✅ wired |
-| Button B | leg 1 | P33 | 3V3 row, pin 8 | ✅ wire now |
-| Button B | leg 2 | GND | shared GND rail | ✅ wire now |
+| Button A (kick) | leg 1 | P32 | 3V3 row, pin 7 | ✅ wired |
+| Button A (kick) | leg 2 | GND | 3V3 row, pin 14 | ✅ wired |
+| Button B (snare) | leg 1 | P33 | 3V3 row, pin 8 | ✅ wired |
+| Button B (snare) | leg 2 | GND | shared GND rail | ✅ wired |
 | OLED SSD1306 | VCC | 3V3 | 3V3 row, pin 1 | later |
 | OLED SSD1306 | GND | GND | other row, pin 1 | later |
 | OLED SSD1306 | SDA | P21 | other row, pin 6 | later |
