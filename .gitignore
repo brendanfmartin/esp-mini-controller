@@ -1,0 +1,20 @@
+# PlatformIO build output and downloaded libs
+.pio/
+
+# VS Code: PlatformIO regenerates these per machine; keep only extensions.json
+.vscode/*
+!.vscode/extensions.json
+
+# Scratch space for local experiments, logs, serial captures
+.tmp/
+
+# Claude Code personal settings (shared settings.json is fine to commit)
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Editors
+*.swp
+*~
+.idea/
